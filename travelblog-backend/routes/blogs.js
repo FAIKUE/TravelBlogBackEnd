@@ -53,8 +53,57 @@ router.post('/', jsonParser, function(req, res, next) {
     }
 });
 
+/* PATCH change blog. */
+router.patch('/:id', jsonParser, function(req, res, next) {
+    const blog = req.body;
+
+    if (blog["title"] && blog["destination"] && blog["traveltime"] && blog["shortDescription"]) {
+        const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
+        mongoClient.connect(function(err) {
+            if (err) {
+                res.sendStatus(500);
+                throw err;
+            }
+
+            mongoClient.db('travelblog').collection('blogs').updateOne(
+                { "_id": ObjectId(req.params.id) }, 
+                { $set: { 
+                    "title": blog.title,
+                    "destination": blog.destination,
+                    "traveltime": blog.traveltime,
+                    "shortDescription": blog.shortDescription
+                } }, 
+                function(err, result) {
+                    assert.equal(result.modifiedCount, 1, "Exactly the one blog addressed by the id should be changed.");
+                    mongoClient.close();
+                    res.sendStatus(200);
+            });
+        });
+    } else {
+        res.status(400).send("A blog has to consist of a title, destination, traveltime (in days) and shortDescription.");
+    }
+});
+
+/* GET alls blogs entries. */
+router.get('/:id/entries', jsonParser, function(req, res, next) {
+    const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
+    mongoClient.connect(function(err) {
+        if (err) {
+            res.sendStatus(500);
+            throw err;
+        }
+
+        mongoClient.db('travelblog').collection('blogs').findOne({ _id: ObjectId(req.params.id) }, function(err, result) {
+            mongoClient.close();
+            res.status(200).json(result.entries);
+        });
+    });
+});
+
+/* POST add blog entry. */
 router.post('/:id/entries', jsonParser, function(req, res, next) {
     const entry = req.body;
+    entry["_id"] = ObjectId();
 
     if (entry["title"] && entry["datetime"] && entry["text"]) {
         const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
@@ -65,10 +114,41 @@ router.post('/:id/entries', jsonParser, function(req, res, next) {
             }
 
             mongoClient.db('travelblog').collection('blogs').updateOne({ _id: ObjectId(req.params.id) }, { $push: { entries: entry } }, function(err, result) {
-                console.log(result);
-                assert.equal(result.modifiedCount, 1, "Exactly the one blog addressed with the id should be changed.");
+                assert.equal(result.modifiedCount, 1, "Exactly the one blog addressed by the id should be changed.");
                 mongoClient.close();
                 res.sendStatus(201);
+            });
+        });
+    } else {
+        res.status(400).send("A blog entry has to consist of a title, datetime and text.");
+    }
+});
+
+/* PATCH change blog entry. */
+router.patch('/:id/entries/:entryId', jsonParser, function(req, res, next) {
+    const entry = req.body;
+
+    if (entry["title"] && entry["datetime"] && entry["text"]) {
+        const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
+        mongoClient.connect(function(err) {
+            if (err) {
+                res.sendStatus(500);
+                throw err;
+            }
+
+            mongoClient.db('travelblog').collection('blogs').updateOne(
+                { "_id": ObjectId(req.params.id), "entries._id": ObjectId(req.params.entryId) }, 
+                { $set: { 
+                    "entries.$.title": entry.title,
+                    "entries.$.datetime": entry.datetime,
+                    "entries.$.text": entry.text,
+                    "entries.$.place": entry.place,
+                    "entries.$.images": entry.images
+                } }, 
+                function(err, result) {
+                    assert.equal(result.modifiedCount, 1, "Exactly the one blog entry addressed by the id should be changed.");
+                    mongoClient.close();
+                    res.sendStatus(200);
             });
         });
     } else {
