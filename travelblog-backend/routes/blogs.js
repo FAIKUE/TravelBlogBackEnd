@@ -10,7 +10,7 @@ const jwtAuthentication = require('../jwt-authentication');
 
 const jsonParser = bodyParser.json()
 
-/* GET alls blogs. */
+/* GET all blogs. */
 router.get('/', function(req, res, next) {
     const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
     mongoClient.connect(function(err) {
@@ -24,6 +24,37 @@ router.get('/', function(req, res, next) {
             assert.equal(err, null);
             res.status(200).json(docs);
             mongoClient.close();
+        });
+    });
+});
+
+/* GET blog. */
+router.get('/:id', function(req, res, next) {
+    jwtAuthentication.authenticateJWT(req, res, function() {
+        const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
+        mongoClient.connect(function(err) {
+            if (err) {
+                res.sendStatus(500);
+                throw err;
+            }
+
+            let id;
+            try {
+                id = ObjectId(req.params.id)
+            } catch (error) {
+                res.sendStatus(404);
+                return;
+            }
+
+            mongoClient.db('travelblog').collection('blogs').findOne({ _id: id }, function(err, result) {
+                if (err) {
+                    res.sendStatus(500);
+                    throw err;
+                }
+
+                mongoClient.close();
+                res.status(200).json(result);
+            });
         });
     });
 });
@@ -91,16 +122,18 @@ router.patch('/:id', jsonParser, function(req, res, next) {
 
 /* GET alls blogs entries. */
 router.get('/:id/entries', jsonParser, function(req, res, next) {
-    const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
-    mongoClient.connect(function(err) {
-        if (err) {
-            res.sendStatus(500);
-            throw err;
-        }
+    jwtAuthentication.authenticateJWT(req, res, function() {
+        const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
+        mongoClient.connect(function(err) {
+            if (err) {
+                res.sendStatus(500);
+                throw err;
+            }
 
-        mongoClient.db('travelblog').collection('blogs').findOne({ _id: ObjectId(req.params.id) }, function(err, result) {
-            mongoClient.close();
-            res.status(200).json(result.entries);
+            mongoClient.db('travelblog').collection('blogs').findOne({ _id: ObjectId(req.params.id) }, function(err, result) {
+                mongoClient.close();
+                res.status(200).json(result.entries);
+            });
         });
     });
 });
