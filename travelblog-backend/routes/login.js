@@ -32,13 +32,13 @@ router.post('/', jsonParser, function(req, res, next) {
                 const correctPassword = bcrypt.compareSync(password, result.password);
                 if (correctPassword) {
                     // token signing
-                    const token = jwt.sign({'username': username}, jwtAuthentication.jwtAcessTokenSecret);
-                    res.status(200).json({'sucess': true, 'message': 'Authentication successful', 'token': token});
+                    const token = jwt.sign({ 'username': username }, jwtAuthentication.jwtAcessTokenSecret);
+                    res.status(200).json({ 'username': username, 'firstname': result.firstname, 'lastname': result.lastname, 'token': token });
                 } else {
-                    res.status(401).json({'sucess': false, 'message': 'Username and password incorrect.'});
+                    res.status(401).json({ 'sucess': false, 'message': 'Username and password incorrect.' });
                 }
             } else {
-                res.status(401).json({'sucess': false, 'message': 'Username and password incorrect.'});
+                res.status(401).json({ 'sucess': false, 'message': 'Username and password incorrect.' });
             }
             mongoClient.close();
         });

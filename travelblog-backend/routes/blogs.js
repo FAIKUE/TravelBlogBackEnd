@@ -15,14 +15,18 @@ router.get('/', function(req, res, next) {
     const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
     mongoClient.connect(function(err) {
         if (err) {
-            res.sendStatus(500);
-            throw err;
+            res.status(500).json(err);
+            console.error(err);
         }
 
         let blogs = mongoClient.db("travelblog").collection('blogs');
         blogs.find().toArray((err, docs) => {
             assert.equal(err, null);
-            res.status(200).json(docs);
+            if (err) {
+                res.status(500).json({ error: err, result: docs });
+            } else {
+                res.status(200).json(docs);
+            }
             mongoClient.close();
         });
     });
@@ -30,31 +34,28 @@ router.get('/', function(req, res, next) {
 
 /* GET blog. */
 router.get('/:id', function(req, res, next) {
-    jwtAuthentication.authenticateJWT(req, res, function() {
-        const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
-        mongoClient.connect(function(err) {
+    const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
+    mongoClient.connect(function(err) {
+        if (err) {
+            res.sendStatus(500);
+            console.error(err);
+        }
+
+        let id;
+        try {
+            id = ObjectId(req.params.id)
+        } catch {
+            res.status(404).send("Id was invalid.");
+        }
+
+        mongoClient.db('travelblog').collection('blogs').findOne({ _id: id }, function(err, result) {
             if (err) {
                 res.sendStatus(500);
-                throw err;
-            }
-
-            let id;
-            try {
-                id = ObjectId(req.params.id)
-            } catch (error) {
-                res.sendStatus(404);
-                return;
-            }
-
-            mongoClient.db('travelblog').collection('blogs').findOne({ _id: id }, function(err, result) {
-                if (err) {
-                    res.sendStatus(500);
-                    throw err;
-                }
-
-                mongoClient.close();
+                console.error(err);
+            } else {
                 res.status(200).json(result);
-            });
+            }
+            mongoClient.close();
         });
     });
 });
@@ -68,17 +69,19 @@ router.post('/', jsonParser, function(req, res, next) {
             const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
             mongoClient.connect(function(err) {
                 if (err) {
-                    res.sendStatus(500);
-                    throw err;
+                    res.status(500).json(err);
+                    console.error(err);
                 }
     
                 let blogs = mongoClient.db('travelblog').collection('blogs');
                 blogs.insertOne(blog, function(err, result) {
-                    assert.equal(err, null);
-                    assert.equal(blog, result.ops[0], 'Blog from request has to equal to inserted blog in db.');
-                    console.log(`Inserted ${result} into blogs.`);
+                    if (err) {
+                        res.status(500).json({ error: err, result: result });
+                    } else {
+                        console.log(`Inserted ${result} into blogs.`);
+                        res.status(201).json(result.ops[0]);
+                    }
                     mongoClient.close();
-                    res.sendStatus(201);
                 });
             });
         } else {
@@ -96,8 +99,8 @@ router.patch('/:id', jsonParser, function(req, res, next) {
             const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
             mongoClient.connect(function(err) {
                 if (err) {
-                    res.sendStatus(500);
-                    throw err;
+                    res.status(500).json(err);
+                    console.error(err);
                 }
 
                 mongoClient.db('travelblog').collection('blogs').updateOne(
@@ -106,12 +109,17 @@ router.patch('/:id', jsonParser, function(req, res, next) {
                         "title": blog.title,
                         "destination": blog.destination,
                         "traveltime": blog.traveltime,
-                        "shortDescription": blog.shortDescription
+                        "shortDescription": blog.shortDescription,
+                        "entries": blog.entries
                     } }, 
                     function(err, result) {
-                        assert.equal(result.modifiedCount, 1, "Exactly the one blog addressed by the id should be changed.");
+                        if (err) {
+                            res.status(500).json({ error: err, result: result });
+                        } else {
+                            console.log(`${result.matchedCount} blog(s) matched, ${result.modifiedCount} were modieifed.`);
+                            res.status(200).json(blog);
+                        }
                         mongoClient.close();
-                        res.sendStatus(200);
                 });
             });
         } else {
@@ -120,81 +128,47 @@ router.patch('/:id', jsonParser, function(req, res, next) {
     });
 });
 
-/* GET alls blogs entries. */
-router.get('/:id/entries', jsonParser, function(req, res, next) {
+/* DELETE blog. */
+router.delete('/:id', function(req, res, next) {
     jwtAuthentication.authenticateJWT(req, res, function() {
         const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
         mongoClient.connect(function(err) {
             if (err) {
-                res.sendStatus(500);
-                throw err;
+                res.status(500).json(err);
+                console.error(err);
             }
 
-            mongoClient.db('travelblog').collection('blogs').findOne({ _id: ObjectId(req.params.id) }, function(err, result) {
+            mongoClient.db('travelblog').collection('blogs').deleteOne({ "_id": ObjectId(req.params.id) }, (err, result) => {
+                if (err || !result.result.ok) {
+                    res.status(500).json({ error: err, result: result });
+                } else {
+                    console.log(`${result.result.n} blog(s) were deleted.`)
+                    res.status(200).json(result);
+                }
                 mongoClient.close();
-                res.status(200).json(result.entries);
             });
         });
     });
 });
 
-/* POST add blog entry. */
-router.post('/:id/entries', jsonParser, function(req, res, next) {
-    jwtAuthentication.authenticateJWT(req, res, function() {
-        const entry = req.body;
-        entry["_id"] = ObjectId();
-
-        if (entry["title"] && entry["datetime"] && entry["text"]) {
-            const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
-            mongoClient.connect(function(err) {
-                if (err) {
-                    res.sendStatus(500);
-                    throw err;
-                }
-
-                mongoClient.db('travelblog').collection('blogs').updateOne({ _id: ObjectId(req.params.id) }, { $push: { entries: entry } }, function(err, result) {
-                    assert.equal(result.modifiedCount, 1, "Exactly the one blog addressed by the id should be changed.");
-                    mongoClient.close();
-                    res.sendStatus(201);
-                });
-            });
-        } else {
-            res.status(400).send("A blog entry has to consist of a title, datetime and text.");
+/* GET all blogs entries. */
+router.get('/:id/entries', jsonParser, function(req, res, next) {
+    const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
+    mongoClient.connect(function(err) {
+        if (err) {
+            res.status(500).json(err);
+            console.error(err);
         }
-    });
-});
 
-/* PATCH change blog entry. */
-router.patch('/:id/entries/:entryId', jsonParser, function(req, res, next) {
-    jwtAuthentication.authenticateJWT(req, res, function() {
-        const entry = req.body;
+        mongoClient.db('travelblog').collection('blogs').findOne({ _id: ObjectId(req.params.id) }, function(err, result) {
+            if (err) {
+                res.status(500).json({ error: err, result: result });
+            } else {
+                res.status(200).json(result.entries);
+            }
 
-        if (entry["title"] && entry["datetime"] && entry["text"]) {
-            const mongoClient = new MongoClient(dbConnectionString, { useNewUrlParser: true, useUnifiedTopology: true });
-            mongoClient.connect(function(err) {
-                if (err) {
-                    res.sendStatus(500);
-                    throw err;
-                }
-
-                mongoClient.db('travelblog').collection('blogs').updateOne(
-                    { "_id": ObjectId(req.params.id), "entries._id": ObjectId(req.params.entryId) }, 
-                    { $set: { 
-                        "entries.$.title": entry.title,
-                        "entries.$.datetime": entry.datetime,
-                        "entries.$.text": entry.text,
-                        "entries.$.place": entry.place,
-                        "entries.$.images": entry.images
-                    } }, 
-                    function(err, result) {
-                        assert.equal(result.modifiedCount, 1, "Exactly the one blog entry addressed by the id should be changed.");
-                        mongoClient.close();
-                        res.sendStatus(200);
-                });
-            });
-        } else {
-            res.status(400).send("A blog entry has to consist of a title, datetime and text.");
-        }
+            mongoClient.close();
+        });
     });
 });
 

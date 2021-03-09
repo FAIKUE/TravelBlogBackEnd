@@ -7,3 +7,13 @@ Fehlerbehebung bei POST /blogs. Erstellen von Blogs funktioniert. Implementieren
 ## 26.02.2021 ##
 Erstellen der PATCH /blogs/:id und PATCH /blogs/:id/entries/:entriesId Endpoints.
 Einführen von jwt Authentifizierung für die Endpoints, die Daten ändern.
+## 28.02.2021 ##
+Frontend-Projekt erstellt. Layout mit Bootstrap aufgebaut. Auflisten der Blogs und Einloggen funktionieren.
+## 04.03.2021 ##
+Anzeigen von einzelnen Blogs.
+## 05.03.2021 ##
+Bearbeiten von Blogs.
+## 07.03.2021 ##
+Bearbeiten von Blogs. Hinzufügen von Einträgen und Bildern.
+## 09.03.2021 ##
+Fehler beheben. Löschen von Blogs, Einträgen und Bildern. Abschluss des Projekts.
